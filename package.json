@@ -1,5 +1,5 @@
 {
-  "name": "shaky-viz",
+  "name": "shaky-diagram",
   "version": "1.0.0",
   "description": "Shaky diagrams to SVG converter",
   "main": "index.js",

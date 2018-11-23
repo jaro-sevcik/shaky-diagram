@@ -18,7 +18,7 @@ function writeHeader() {
 <link href="${fontUrl}" rel="stylesheet">
 <body>
 
-<h1>My first SVG</h1>
+<h1>Shaky diagram</h1>
 
 <svg width="1000" height="1000">
 <style>
@@ -27,10 +27,6 @@ function writeHeader() {
       stroke-linecap:round; }
     .dot { stroke:black; stroke-width:4; fill:black; }
 </style>
-<marker id="markerArrow" markerWidth="13" markerHeight="13" refX="5" refY="3"
-       orient="auto">
-    <path d="M1,1 L1,6 L5,3 L1,1" style="fill: #000000;" />
-</marker>
 `);
 }
 
@@ -76,11 +72,14 @@ function convertToSVG(contents : string) {
   const xscale = 20;
   const yscale = 20;
 
+  const toX = (x : number) => (x + 0.5) * xscale;
+  const toY = (y : number) => (y + 0.5) * yscale;
+
   function addLine(x1 : number, y1 : number, x2 : number, y2 : number) {
-    x1 = (x1 + 0.5) * xscale;
-    x2 = (x2 + 0.5) * xscale;
-    y1 = (y1 + 0.5) * yscale;
-    y2 = (y2 + 0.5) * yscale;
+    x1 = toX(x1);
+    x2 = toX(x2);
+    y1 = toY(y1);
+    y2 = toY(y2);
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     const rx1 = Math.random();
     const ry1 = Math.random() - 0.5;
@@ -172,7 +171,7 @@ function convertToSVG(contents : string) {
     }
     right--;
 
-    if (left + 1 >= right) return false;
+    if (left + 1 > right) return false;
 
     for (let i = left; i < right + 1; i++) {
       setUsedHorizontal(i, y);
@@ -207,7 +206,7 @@ function convertToSVG(contents : string) {
     }
     bottom--;
 
-    if (top + 1 >= bottom) return false;
+    if (top + 1 > bottom) return false;
 
     for (let i = top; i < bottom + 1; i++) {
       setUsedVertical(x, i);
@@ -227,6 +226,14 @@ function convertToSVG(contents : string) {
     addLine(x, top, x, bottom);
     return true;
   }
+
+  function drawFilledRectangle(r : IRectangle) {
+    s += `<path d="M${toX(r.left)},${toY(r.top)} H${toX(r.right)} ` +
+         `V${toY(r.bottom)} H${toX(r.left)} Z" ` +
+         `style="fill:#eee;"/>\n`;
+  }
+
+  detectRectangles(lines).forEach(drawFilledRectangle);
 
   // First, figure out the lines.
   for (let y = 0; y < lines.length; y++) {
@@ -280,4 +287,91 @@ function convertToSVG(contents : string) {
   }
 
   return s;
+}
+
+interface IRectangle {
+  left : number;
+  right : number;
+  top : number;
+  bottom : number;
+}
+
+
+function detectRectangles(lines : string[]) : IRectangle[] {
+  function buildRanges(l : string) {
+    const ranges = [];
+    for (let j = 0; j < l.length; j++) {
+      let c = l[j];
+      if (l[j] === "+") {
+        let range = [j];
+        j++;
+        while (j < l.length) {
+          c = l[j];
+          if (c === "+") range.push(j);
+          else if (c !== "-") break;
+          j++;
+        }
+        if (range.length > 1) ranges.push(range);
+      }
+    }
+    return ranges;
+  }
+
+  function pruneRanges(l : string, ranges : number[][]) {
+    for (let i = 0; i < ranges.length; i++) {
+      const r = ranges[i];
+      for (let j = 0; j < r.length; j++) {
+        const c = l[r[j]];
+        if (c !== "+" && c !== "|") {
+          r.splice(j, 1);
+          j--;
+        }
+      }
+      if (r.length <= 1) {
+        ranges.splice(i, 1);
+        i--;
+      }
+    }
+  }
+
+  function collectTiles(l : string, ranges : number[][], tiles : IRectangle[], top : number, bottom : number) {
+    for (const r of ranges) {
+      let i = 0;
+      for (; i < r.length - 1; i++) {
+        // Find the first "+" that could be a corner.
+        if (l[r[i]] !== "+") continue;
+        // ... and look for the other corner.
+        const start = r[i];
+        for (let j = r[i] + 1; j < l.length; j++) {
+          if (l[j] !== "+" && l[j] !== "-") break;
+
+          if (j === r[i + 1]) {
+            if (l[j] === "+") {
+              const tile = { 
+                left : start,
+                right : r[i + 1],
+                top,
+                bottom
+              };
+              tiles.push(tile);
+            }
+            i++;
+          }
+        }
+      }
+    }
+  }
+
+  const tiles : IRectangle[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    let l = lines[i];
+    const ranges = buildRanges(l);
+
+    for (let j = i + 1; j < lines.length; j++) {
+      const l = lines[j];
+      pruneRanges(l, ranges);
+      collectTiles(l, ranges, tiles, i, j);
+    }
+  }
+  return tiles;
 }
