@@ -233,9 +233,12 @@ function convertToSVG(contents : string) {
          `style="fill:#eee;"/>\n`;
   }
 
+  // TODO Finish arbitrary region detection.
+  // return detectAreas(lines);
+
   detectRectangles(lines).forEach(drawFilledRectangle);
 
-  // First, figure out the lines.
+  // Figure out the lines.
   for (let y = 0; y < lines.length; y++) {
     const l = lines[y];
     if (processedBitmap.length <= y) processedBitmap.push([]);
@@ -287,6 +290,139 @@ function convertToSVG(contents : string) {
   }
 
   return s;
+}
+
+interface IPoint {
+  x : number;
+  y : number;
+}
+
+function detectAreas(lines : string[]) {
+  // Representative color for each set element.
+  const colorOwner : number[] = [0];
+  // Zero initialize to the default color.
+  const width = lines[0].length;
+  const height = lines.length;
+
+  // Each point on the grid is assigned a color. The color is recorded
+  // in the following array.
+  const coloring : number[][] =
+    Array(lines.length + 1).fill(0).map((l) => Array(width + 1).fill(0));
+
+  // Allocate new color and make space for it in the colorOwner array.
+  function newColor() {
+    const color = colorOwner.length;
+    colorOwner.push(color);
+    return color;
+  }
+
+  function findOwner(c : number) : number {
+    // Find the owner.
+    let owner = c;
+    while (colorOwner[owner] !== owner) {
+      owner = colorOwner[owner];
+    }
+
+    // Compress the path to the root.
+    while (colorOwner[c] !== c) {
+      const next = colorOwner[c];
+      colorOwner[c] = owner;
+      c = next;
+    }
+    return owner;
+  }
+
+  // Union the color sets {c1} and {c2}.
+  function unify(c1 : number, c2 : number) {
+    c1 = findOwner(c1);
+    c2 = findOwner(c2);
+    if (c1 < c2) {
+      colorOwner[c2] = c1;
+    } else if (c2 < c1) {
+      colorOwner[c1] = c2;
+    }
+  }
+
+  // Compute color.
+  for (let i = 0; i < height; i++) {
+    const l = lines[i];
+    for (let j = 0; j < width; j++) {
+      const c = l[j];
+      if (c === "+") {
+        // Four way split => we need new color.
+        coloring[i + 1][j + 1] = newColor();
+      } else if (c === "|") {
+        // Reuse the color from above, unify colors on the left.
+        unify(coloring[i][j], coloring[i + 1][j]);
+        coloring[i + 1][j + 1] = coloring[i][j + 1];
+      } else if (c === "-") {
+        unify(coloring[i][j], coloring[i][j + 1]);
+        coloring[i + 1][j + 1] = coloring[i + 1][j];
+      } else {
+        unify(coloring[i][j], coloring[i + 1][j]);
+        unify(coloring[i][j], coloring[i][j + 1]);
+        coloring[i + 1][j + 1] = coloring[i + 1][j];
+      }
+    }
+  }
+
+  // Make sure the borders are all the same color.
+  for (let i = 0; i < height; i++) {
+    unify(coloring[i][width], coloring[0][width]);
+  }
+  for (let j = 0; j < width; j++) {
+    unify(coloring[height][j], coloring[height][0]);
+  }
+
+  // Renumber the colors to be dense.
+  let maxColor = 0;
+  let colorNumbering : number[] = colorOwner.map((i) => -1);
+  for (let i = 0; i < colorOwner.length; i++) {
+    let owner = findOwner(i);
+    if (colorNumbering[owner] === -1) {
+      colorNumbering[owner] = maxColor++;
+    }
+    colorNumbering[i] = colorNumbering[owner];
+  }
+  for (let i = 0; i < coloring.length; i++) {
+    coloring[i] = coloring[i].map((j : number) => colorNumbering[j]);
+  }
+
+  const regionPaths : IPoint[][] = [];
+
+  const directions : IPoint[] = [
+    { x : 1, y : 0 },
+    { x : 0, y : 1 },
+    { x : -1, y : 0 },
+    { x : 0, y : -1 },
+  ];
+
+  function computePath(c : number, x : number, y : number) : IPoint[] {
+    const path : IPoint[] = [{ x, y }];
+    let direction = 0;
+    return path;
+  }
+
+  // Compute paths.
+  for (let i = 0; i < height; i++) {
+    for (let j = 0; j < width; i++) {
+      let c = coloring[i][j];
+      if (c > 0 && !regionPaths[c]) {
+        regionPaths[c] = computePath(c, j, i);
+      }
+    }
+  }
+
+  let colorCodes = " 0123456789abcdefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQR";
+  for (const colorLine of coloring) {
+    let codeLine = "";
+    for (const c of colorLine) {
+      codeLine += colorCodes[c];
+    }
+    console.log(codeLine);
+  }
+
+  console.log(coloring[0][0] + " - " + colorOwner[0]);
 }
 
 interface IRectangle {
@@ -347,7 +483,7 @@ function detectRectangles(lines : string[]) : IRectangle[] {
 
           if (j === r[i + 1]) {
             if (l[j] === "+") {
-              const tile = { 
+              const tile = {
                 left : start,
                 right : r[i + 1],
                 top,
