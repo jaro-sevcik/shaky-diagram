@@ -61,6 +61,189 @@ function transpose(lines : string[]) : string[] {
   return rows;
 }
 
+interface IPoint {
+  x : number;
+  y : number;
+}
+
+interface IColoring {
+  coloring : number[][];
+  paths : IPoint[][];  // Maps color to sequence of points.
+}
+
+function detectAreas(lines : string[]) : IColoring {
+  // Representative color for each set element.
+  const colorOwner : number[] = [0];
+  // Zero initialize to the default color.
+  const width = lines[0].length;
+  const height = lines.length;
+
+  // Each point on the grid is assigned a color. The color is recorded
+  // in the following array.
+  const coloring : number[][] =
+    Array(lines.length + 1).fill(0).map((l) => Array(width + 1).fill(0));
+
+  // Allocate new color and make space for it in the colorOwner array.
+  function newColor() {
+    const color = colorOwner.length;
+    colorOwner.push(color);
+    return color;
+  }
+
+  function findOwner(c : number) : number {
+    // Find the owner.
+    let owner = c;
+    while (colorOwner[owner] !== owner) {
+      owner = colorOwner[owner];
+    }
+
+    // Compress the path to the root.
+    while (colorOwner[c] !== c) {
+      const next = colorOwner[c];
+      colorOwner[c] = owner;
+      c = next;
+    }
+    return owner;
+  }
+
+  // Union the color sets {c1} and {c2}.
+  function unify(c1 : number, c2 : number) {
+    c1 = findOwner(c1);
+    c2 = findOwner(c2);
+    if (c1 < c2) {
+      colorOwner[c2] = c1;
+    } else if (c2 < c1) {
+      colorOwner[c1] = c2;
+    }
+  }
+
+  // Compute color.
+  for (let i = 0; i < height; i++) {
+    const l = lines[i];
+    for (let j = 0; j < width; j++) {
+      const c = l[j];
+      if (c === "+") {
+        // Four way split => we need new color.
+        coloring[i + 1][j + 1] = newColor();
+      } else if (c === "|") {
+        // Reuse the color from above, unify colors on the left.
+        unify(coloring[i][j], coloring[i + 1][j]);
+        coloring[i + 1][j + 1] = coloring[i][j + 1];
+      } else if (c === "-") {
+        unify(coloring[i][j], coloring[i][j + 1]);
+        coloring[i + 1][j + 1] = coloring[i + 1][j];
+      } else {
+        unify(coloring[i][j], coloring[i + 1][j]);
+        unify(coloring[i][j], coloring[i][j + 1]);
+        coloring[i + 1][j + 1] = coloring[i + 1][j];
+      }
+    }
+  }
+
+  // Make sure the borders are all the same color.
+  for (let i = 0; i < height; i++) {
+    unify(coloring[i][width], coloring[0][width]);
+  }
+  for (let j = 0; j < width; j++) {
+    unify(coloring[height][j], coloring[height][0]);
+  }
+
+  // Renumber the colors to be dense.
+  let maxColor = 0;
+  let colorNumbering : number[] = colorOwner.map((i) => -1);
+  for (let i = 0; i < colorOwner.length; i++) {
+    let owner = findOwner(i);
+    if (colorNumbering[owner] === -1) {
+      colorNumbering[owner] = maxColor++;
+    }
+    colorNumbering[i] = colorNumbering[owner];
+  }
+  for (let i = 0; i < coloring.length; i++) {
+    coloring[i] = coloring[i].map((j : number) => colorNumbering[j]);
+  }
+
+  const regionPaths : IPoint[][] = [];
+
+  const directions : IPoint[] = [
+    { x : 1, y : 0 },
+    { x : 0, y : 1 },
+    { x : -1, y : 0 },
+    { x : 0, y : -1 },
+  ];
+
+  const pivots : IPoint[] = [
+    { x : -1, y : -1 },
+    { x : 0, y : -1 },
+    { x : 0, y : 0 },
+    { x : -1, y : 0 },
+  ];
+
+  function computePath(c : number, x : number, y : number) : IPoint[] {
+    const startX = x;
+    const startY = y;
+    const path : IPoint[] = [{ x : x - 1, y : y - 1 }];
+    let direction = 0;
+
+    do {
+      let i : number;
+      let probeX : number;
+      let probeY : number;
+      let probeDirection : number;
+      for (i = -1; i <= 2; i++) {
+        probeDirection = (direction + i + 4) % 4;
+        probeX = x + directions[probeDirection].x;
+        probeY = y + directions[probeDirection].y;
+
+        if (c === coloring[probeY][probeX]) {
+          break;
+        }
+      }
+      switch (i) {
+        case -1: // Turning left.
+          path.push({ x : x + pivots[direction].x,
+                      y : y + pivots[direction].y });
+          break;
+        case 0: // Going straight => Nothing to do.
+          break;
+        case 1: // Going right.
+          path.push({ x : x + pivots[probeDirection].x,
+                      y : y + pivots[probeDirection].y });
+          break;
+        case 2: // Going back => nothing to do.
+         path.push({ x : x + pivots[(direction + 1) % 4].x,
+                     y : y + pivots[(direction + 1) % 4].y });
+         path.push({ x : x + pivots[probeDirection].x,
+                     y : y + pivots[probeDirection].y });
+          break;
+      }
+
+      direction = probeDirection;
+      x = probeX;
+      y = probeY;
+
+    } while (startX !== x || startY !== y || direction !== 3);
+
+    return path;
+  }
+
+  // Compute paths.
+  for (let i = 0; i < height; i++) {
+    for (let j = 0; j < width; j++) {
+      let c = coloring[i][j];
+      if (c > 0 && !regionPaths[c]) {
+        regionPaths[c] = computePath(c, j, i);
+      }
+    }
+  }
+
+  // let colorCodes = " 0123456789abcdefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQR";
+  // for (const colorLine of coloring) {
+  //   console.log(colorLine.reduce((s, c) => s + colorCodes[c], ""));
+  // }
+
+  return { paths : regionPaths, coloring };
+}
+
 function convertToSVG(contents : string) {
   let s = "";
   const lines = padLinesToMax(contents.split("\n"));
@@ -227,16 +410,16 @@ function convertToSVG(contents : string) {
     return true;
   }
 
-  function drawFilledRectangle(r : IRectangle) {
-    s += `<path d="M${toX(r.left)},${toY(r.top)} H${toX(r.right)} ` +
-         `V${toY(r.bottom)} H${toX(r.left)} Z" ` +
-         `style="fill:#eee;"/>\n`;
+  function drawFilledPath(p : IPoint[]) {
+    s += `<path d="M${toX(p[0].x)},${toY(p[0].y)} `;
+    for (let i = 1; i < p.length; i++) {
+      s += `L${toX(p[i].x)},${toY(p[i].y)} `;
+    }
+    s += `Z" style="fill:#eee;"/>\n`;
   }
 
-  // TODO Finish arbitrary region detection.
-  // return detectAreas(lines);
-
-  detectRectangles(lines).forEach(drawFilledRectangle);
+  const coloring = detectAreas(lines);
+  coloring.paths.forEach(drawFilledPath);
 
   // Figure out the lines.
   for (let y = 0; y < lines.length; y++) {
@@ -290,224 +473,4 @@ function convertToSVG(contents : string) {
   }
 
   return s;
-}
-
-interface IPoint {
-  x : number;
-  y : number;
-}
-
-function detectAreas(lines : string[]) {
-  // Representative color for each set element.
-  const colorOwner : number[] = [0];
-  // Zero initialize to the default color.
-  const width = lines[0].length;
-  const height = lines.length;
-
-  // Each point on the grid is assigned a color. The color is recorded
-  // in the following array.
-  const coloring : number[][] =
-    Array(lines.length + 1).fill(0).map((l) => Array(width + 1).fill(0));
-
-  // Allocate new color and make space for it in the colorOwner array.
-  function newColor() {
-    const color = colorOwner.length;
-    colorOwner.push(color);
-    return color;
-  }
-
-  function findOwner(c : number) : number {
-    // Find the owner.
-    let owner = c;
-    while (colorOwner[owner] !== owner) {
-      owner = colorOwner[owner];
-    }
-
-    // Compress the path to the root.
-    while (colorOwner[c] !== c) {
-      const next = colorOwner[c];
-      colorOwner[c] = owner;
-      c = next;
-    }
-    return owner;
-  }
-
-  // Union the color sets {c1} and {c2}.
-  function unify(c1 : number, c2 : number) {
-    c1 = findOwner(c1);
-    c2 = findOwner(c2);
-    if (c1 < c2) {
-      colorOwner[c2] = c1;
-    } else if (c2 < c1) {
-      colorOwner[c1] = c2;
-    }
-  }
-
-  // Compute color.
-  for (let i = 0; i < height; i++) {
-    const l = lines[i];
-    for (let j = 0; j < width; j++) {
-      const c = l[j];
-      if (c === "+") {
-        // Four way split => we need new color.
-        coloring[i + 1][j + 1] = newColor();
-      } else if (c === "|") {
-        // Reuse the color from above, unify colors on the left.
-        unify(coloring[i][j], coloring[i + 1][j]);
-        coloring[i + 1][j + 1] = coloring[i][j + 1];
-      } else if (c === "-") {
-        unify(coloring[i][j], coloring[i][j + 1]);
-        coloring[i + 1][j + 1] = coloring[i + 1][j];
-      } else {
-        unify(coloring[i][j], coloring[i + 1][j]);
-        unify(coloring[i][j], coloring[i][j + 1]);
-        coloring[i + 1][j + 1] = coloring[i + 1][j];
-      }
-    }
-  }
-
-  // Make sure the borders are all the same color.
-  for (let i = 0; i < height; i++) {
-    unify(coloring[i][width], coloring[0][width]);
-  }
-  for (let j = 0; j < width; j++) {
-    unify(coloring[height][j], coloring[height][0]);
-  }
-
-  // Renumber the colors to be dense.
-  let maxColor = 0;
-  let colorNumbering : number[] = colorOwner.map((i) => -1);
-  for (let i = 0; i < colorOwner.length; i++) {
-    let owner = findOwner(i);
-    if (colorNumbering[owner] === -1) {
-      colorNumbering[owner] = maxColor++;
-    }
-    colorNumbering[i] = colorNumbering[owner];
-  }
-  for (let i = 0; i < coloring.length; i++) {
-    coloring[i] = coloring[i].map((j : number) => colorNumbering[j]);
-  }
-
-  const regionPaths : IPoint[][] = [];
-
-  const directions : IPoint[] = [
-    { x : 1, y : 0 },
-    { x : 0, y : 1 },
-    { x : -1, y : 0 },
-    { x : 0, y : -1 },
-  ];
-
-  function computePath(c : number, x : number, y : number) : IPoint[] {
-    const path : IPoint[] = [{ x, y }];
-    let direction = 0;
-    return path;
-  }
-
-  // Compute paths.
-  for (let i = 0; i < height; i++) {
-    for (let j = 0; j < width; i++) {
-      let c = coloring[i][j];
-      if (c > 0 && !regionPaths[c]) {
-        regionPaths[c] = computePath(c, j, i);
-      }
-    }
-  }
-
-  let colorCodes = " 0123456789abcdefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQR";
-  for (const colorLine of coloring) {
-    let codeLine = "";
-    for (const c of colorLine) {
-      codeLine += colorCodes[c];
-    }
-    console.log(codeLine);
-  }
-
-  console.log(coloring[0][0] + " - " + colorOwner[0]);
-}
-
-interface IRectangle {
-  left : number;
-  right : number;
-  top : number;
-  bottom : number;
-}
-
-
-function detectRectangles(lines : string[]) : IRectangle[] {
-  function buildRanges(l : string) {
-    const ranges = [];
-    for (let j = 0; j < l.length; j++) {
-      let c = l[j];
-      if (l[j] === "+") {
-        let range = [j];
-        j++;
-        while (j < l.length) {
-          c = l[j];
-          if (c === "+") range.push(j);
-          else if (c !== "-") break;
-          j++;
-        }
-        if (range.length > 1) ranges.push(range);
-      }
-    }
-    return ranges;
-  }
-
-  function pruneRanges(l : string, ranges : number[][]) {
-    for (let i = 0; i < ranges.length; i++) {
-      const r = ranges[i];
-      for (let j = 0; j < r.length; j++) {
-        const c = l[r[j]];
-        if (c !== "+" && c !== "|") {
-          r.splice(j, 1);
-          j--;
-        }
-      }
-      if (r.length <= 1) {
-        ranges.splice(i, 1);
-        i--;
-      }
-    }
-  }
-
-  function collectTiles(l : string, ranges : number[][], tiles : IRectangle[], top : number, bottom : number) {
-    for (const r of ranges) {
-      let i = 0;
-      for (; i < r.length - 1; i++) {
-        // Find the first "+" that could be a corner.
-        if (l[r[i]] !== "+") continue;
-        // ... and look for the other corner.
-        const start = r[i];
-        for (let j = r[i] + 1; j < l.length; j++) {
-          if (l[j] !== "+" && l[j] !== "-") break;
-
-          if (j === r[i + 1]) {
-            if (l[j] === "+") {
-              const tile = {
-                left : start,
-                right : r[i + 1],
-                top,
-                bottom
-              };
-              tiles.push(tile);
-            }
-            i++;
-          }
-        }
-      }
-    }
-  }
-
-  const tiles : IRectangle[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    let l = lines[i];
-    const ranges = buildRanges(l);
-
-    for (let j = i + 1; j < lines.length; j++) {
-      const l = lines[j];
-      pruneRanges(l, ranges);
-      collectTiles(l, ranges, tiles, i, j);
-    }
-  }
-  return tiles;
 }
