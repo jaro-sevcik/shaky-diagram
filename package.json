@@ -2,9 +2,9 @@
   "name": "shaky-diagram",
   "version": "1.0.0",
   "description": "Shaky diagrams to SVG converter",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "node dist/run.js",
     "build": "tsc",
     "watch": "tsc -w"
   },

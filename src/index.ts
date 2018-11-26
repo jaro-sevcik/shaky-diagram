@@ -1,15 +1,3 @@
-import * as fs from "fs";
-import * as process from "process";
-
-
-fs.readFile(0, "utf8", (err : any, contents : string) => {
-  if (err != null) {
-    console.error("Could not read stdin.");
-    process.exit(1);
-  }
-
-  processFile(contents);
-});
 
 function writeHeader() {
   const fontUrl = "https://fonts.googleapis.com/css?family=Gloria+Hallelujah";
@@ -21,12 +9,6 @@ function writeHeader() {
 <h1>Shaky diagram</h1>
 
 <svg width="1000" height="1000">
-<style>
-    .txt { font-family: 'Gloria Hallelujah', cursive; font-size:30; }
-    .line { stroke:black; stroke-width:4; fill:transparent;
-      stroke-linecap:round; }
-    .dot { stroke:black; stroke-width:4; fill:black; }
-</style>
 `);
 }
 
@@ -38,11 +20,120 @@ function writeFooter() {
 </html>`);
 }
 
-function processFile(contents : string) {
+export function processFile(contents : string) {
   writeHeader();
   console.log(convertToSVG(contents));
   writeFooter();
+}
 
+class SVGBuilder {
+  s : string;
+  scaleX : number = 20;
+  scaleY : number = 20;
+
+  boundLeft : number = 10000;
+  boundTop : number = 10000;
+  boundRight : number = 0;
+  boundBottom : number = 0;
+
+  constructor() {
+    this.s = `
+  <style>
+    .txt { font-family: 'Gloria Hallelujah', cursive; font-size:30; }
+    .line { stroke:black; stroke-width:4; fill:transparent;
+      stroke-linecap:round; }
+    .dot { stroke:black; stroke-width:4; fill:black; }
+  </style>
+`;
+  }
+
+  shakyLine(x1 : number, y1 : number, x2 : number, y2 : number) {
+    x1 = this.toX(x1);
+    x2 = this.toX(x2);
+    y1 = this.toY(y1);
+    y2 = this.toY(y2);
+    const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    const rx1 = Math.random();
+    const ry1 = Math.random() - 0.5;
+    const xm1 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * ry1 * 0.5 / len;
+    const ym1 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry1 * 0.5 / len;
+    const rx2 = Math.random();
+    const ry2 = Math.random() - 0.5;
+    const xm2 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * rx2 * 0.5 / len;
+    const ym2 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry2 * 0.5 / len;
+    this.s += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
+              ` class="line"/>\n`;
+  }
+
+  text(x : number, y : number, t : string) {
+    function escapeHtml(text : string) : string {
+      function translate(s : string) {
+        switch (s) {
+          case "&": return "&amp;";
+          case '<': return "&lt;";
+          case '>': return "&gt;";
+          case '"': return "&quot;";
+          case "'": return "&#039;";
+        }
+      };
+      return text.replace(/[&<>"']/g, translate);
+    }
+    // TODO Update the bounds properly.
+    this.s += `<text x="${this.toX(x)}" ` +
+              `y="${this.toY(y + 0.6)}" ` +
+              `class="txt">` + escapeHtml(t) + `</text>`;
+  }
+
+  dot(x : number, y : number) {
+    x = (x + .5) * this.scaleX;
+    y = (y + .5) * this.scaleY;
+    const r = 0.4;
+    const d = 0.25;
+
+    const xs = [];
+    const ys = [];
+    const dxs = [];
+    const dys = [];
+
+    for (let i = 0; i < 4; i++) {
+      const rr = r * (0.8 + 0.4 * Math.random());
+      xs.push(x + Math.sin(i * Math.PI / 2) * rr * this.scaleX);
+      ys.push(y + Math.cos(i * Math.PI / 2) * rr * this.scaleY);
+      dxs.push(Math.cos(i * Math.PI / 2) * d * this.scaleX);
+      dys.push(- Math.sin(i * Math.PI / 2) * d * this.scaleY);
+    }
+    this.s += `<path d="M${xs[0]},${ys[0]} `;
+
+    for (let i = 0; i < 4; i++) {
+      this.s += `C${xs[i] + dxs[i]},${ys[i] + dys[i]} ` +
+      `${xs[(i + 1) % 4] - dxs[(i + 1) % 4]},` +
+      `${ys[(i + 1) % 4] - dys[(i + 1) % 4]} ` +
+      `${xs[(i + 1) % 4]},${ys[(i + 1) % 4]} `;
+    }
+
+    this.s += `" class="ldot"/>\n`;
+  }
+
+  filledPath(p : IPoint[]) {
+    this.s += `<path d="M${this.toX(p[0].x)},${this.toY(p[0].y)} `;
+    for (let i = 1; i < p.length; i++) {
+      this.s += `L${this.toX(p[i].x)},${this.toY(p[i].y)} `;
+    }
+    this.s += `Z" style="fill:#eee;"/>\n`;
+  }
+
+  toX(x : number) {
+    x = (x + 0.5) * this.scaleX;
+    this.boundLeft = Math.min(this.boundLeft, x);
+    this.boundRight = Math.max(this.boundRight, x);
+    return x;
+  }
+  toY(y : number) {
+    y = (y + 0.5) * this.scaleY;
+    this.boundTop = Math.min(this.boundTop, y);
+    this.boundBottom = Math.max(this.boundBottom, y);
+    return y;
+  }
 }
 
 function padLinesToMax(lines : string[]) {
@@ -245,7 +336,7 @@ function detectAreas(lines : string[]) : IColoring {
 }
 
 function convertToSVG(contents : string) {
-  let s = "";
+  const b = new SVGBuilder();
   const lines = padLinesToMax(contents.split("\n"));
   const columns = transpose(lines);
   const height = lines.length;
@@ -254,45 +345,6 @@ function convertToSVG(contents : string) {
 
   const xscale = 20;
   const yscale = 20;
-
-  const toX = (x : number) => (x + 0.5) * xscale;
-  const toY = (y : number) => (y + 0.5) * yscale;
-
-  function drawLine(x1 : number, y1 : number, x2 : number, y2 : number) {
-    x1 = toX(x1);
-    x2 = toX(x2);
-    y1 = toY(y1);
-    y2 = toY(y2);
-    const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-    const rx1 = Math.random();
-    const ry1 = Math.random() - 0.5;
-    const xm1 = x1 + (x2 - x1) * rx1 + xscale * (y2 - y1) * ry1 * 0.5 / len;
-    const ym1 = y1 + (y2 - y1) * rx1 + yscale * (x1 - x2) * ry1 * 0.5 / len;
-    const rx2 = Math.random();
-    const ry2 = Math.random() - 0.5;
-    const xm2 = x1 + (x2 - x1) * rx1 + xscale * (y2 - y1) * ry2 * 0.5 / len;
-    const ym2 = y1 + (y2 - y1) * rx1 + yscale * (x1 - x2) * ry2 * 0.5 / len;
-    s += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
-      ` class="line"/>\n`;
-  }
-
-  function drawText(x : number, y : number, t : string) {
-    function escapeHtml(text : string) : string {
-      function translate(s : string) {
-        switch (s) {
-          case "&": return "&amp;";
-          case '<': return "&lt;";
-          case '>': return "&gt;";
-          case '"': return "&quot;";
-          case "'": return "&#039;";
-        }
-      };
-      return text.replace(/[&<>"']/g, translate);
-    }
-
-    s += `<text x="${(x + 0.5) * xscale}" y="${(y + 1.1) * yscale}"` +
-      ` class="txt">` + escapeHtml(t) + `</text>`;
-  }
 
   function isUsedHorizontal(x : number, y : number) {
     return (processedBitmap[y][x] & 1) !== 0;
@@ -316,41 +368,11 @@ function convertToSVG(contents : string) {
     processedBitmap[y][x] = processedBitmap[y][x] | 2;
   }
 
-  function drawDot(x : number, y : number) {
-    x = (x + .5) * xscale;
-    y = (y + .5) * yscale;
-    const r = 0.4;
-    const d = 0.25;
-
-    const xs = [];
-    const ys = [];
-    const dxs = [];
-    const dys = [];
-
-    for (let i = 0; i < 4; i++) {
-      const rr = r * (0.8 + 0.4 * Math.random());
-      xs.push(x + Math.sin(i * Math.PI / 2) * rr * xscale);
-      ys.push(y + Math.cos(i * Math.PI / 2) * rr * yscale);
-      dxs.push(Math.cos(i * Math.PI / 2) * d * xscale);
-      dys.push(- Math.sin(i * Math.PI / 2) * d * yscale);
-    }
-    s += `<path d="M${xs[0]},${ys[0]} `;
-
-    for (let i = 0; i < 4; i++) {
-      s += `C${xs[i] + dxs[i]},${ys[i] + dys[i]} ` +
-      `${xs[(i + 1) % 4] - dxs[(i + 1) % 4]},` +
-      `${ys[(i + 1) % 4] - dys[(i + 1) % 4]} ` +
-      `${xs[(i + 1) % 4]},${ys[(i + 1) % 4]} `;
-    }
-
-    s += `" class="ldot"/>\n`;
-  }
-
   function drawArrow(x : number, y : number, dx : number, dy : number) {
     const pdx = - dy;
     const pdy = dx;
-    drawLine(x, y, x - 1.4 * dx - 1.0 * pdx, y - 1.4 * dy - 1.0 * pdy);
-    drawLine(x, y, x - 1.4 * dx + 1.0 * pdx, y - 1.4 * dy + 1.0 * pdy);
+    b.shakyLine(x, y, x - 1.4 * dx - 1.0 * pdx, y - 1.4 * dy - 1.0 * pdy);
+    b.shakyLine(x, y, x - 1.4 * dx + 1.0 * pdx, y - 1.4 * dy + 1.0 * pdy);
   }
 
   function tryDrawHorizontal(x : number, y : number) {
@@ -381,10 +403,10 @@ function convertToSVG(contents : string) {
 
     // We have horizontal line.
     if (head === "<") drawArrow(left, y, -0.5, 0);
-    if (head === "*") drawDot(left, y);
+    if (head === "*") b.dot(left, y);
     if (tail === ">") drawArrow(right, y, 0.5, 0);
-    if (tail === "*") drawDot(right, y);
-    drawLine(left, y, right, y);
+    if (tail === "*") b.dot(right, y);
+    b.shakyLine(left, y, right, y);
     return true;
   }
 
@@ -416,23 +438,15 @@ function convertToSVG(contents : string) {
 
     // We have vertical line.
     if (head === "^") drawArrow(x, top, 0, -0.5);
-    if (head === "*") drawDot(x, top);
+    if (head === "*") b.dot(x, top);
     if (tail === "v") drawArrow(x, bottom, 0, 0.5);
-    if (tail === "*") drawDot(x, bottom);
-    drawLine(x, top, x, bottom);
+    if (tail === "*") b.dot(x, bottom);
+    b.shakyLine(x, top, x, bottom);
     return true;
   }
 
-  function drawFilledPath(p : IPoint[]) {
-    s += `<path d="M${toX(p[0].x)},${toY(p[0].y)} `;
-    for (let i = 1; i < p.length; i++) {
-      s += `L${toX(p[i].x)},${toY(p[i].y)} `;
-    }
-    s += `Z" style="fill:#eee;"/>\n`;
-  }
-
   const coloring = detectAreas(lines);
-  coloring.paths.forEach(drawFilledPath);
+  coloring.paths.forEach((p) => b.filledPath(p));
 
   // Figure out the lines.
   for (let y = 0; y < lines.length; y++) {
@@ -479,11 +493,11 @@ function convertToSVG(contents : string) {
       }
       if (x !== end) {
         // We have a word.
-        drawText(x, y, l.substr(x, end - x));
+        b.text(x, y, l.substr(x, end - x));
         x = end;
       }
     }
   }
 
-  return s;
+  return b.s;
 }
