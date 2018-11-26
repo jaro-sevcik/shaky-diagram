@@ -1,5 +1,5 @@
 
-function writeHeader() {
+function writeHeader(x : number, y : number, w : number, h : number) {
   const fontUrl = "https://fonts.googleapis.com/css?family=Gloria+Hallelujah";
   console.log(`
 <html>
@@ -8,7 +8,7 @@ function writeHeader() {
 
 <h1>Shaky diagram</h1>
 
-<svg width="1000" height="1000">
+<svg width="1000" height="500" viewBox="${x} ${y} ${w} ${h}">
 `);
 }
 
@@ -22,7 +22,9 @@ function writeFooter() {
 
 export function processFile(contents : string) {
   const svg = convertToSVG(contents);
-  writeHeader();
+  writeHeader(svg.boundLeft | 0, svg.boundTop | 0,
+    svg.boundRight - svg.boundLeft | 0,
+    svg.boundBottom - svg.boundTop | 0);
   console.log(svg.body);
   writeFooter();
 }
@@ -31,6 +33,7 @@ class SVGBuilder {
   body : string;
   scaleX : number = 20;
   scaleY : number = 20;
+  rngScale : number = 1.5;
 
   boundLeft : number = 10000;
   boundTop : number = 10000;
@@ -48,6 +51,9 @@ class SVGBuilder {
 `;
   }
 
+  random() { return Math.random() * this.rngScale};
+  centerRandom() { return (Math.random() - 0.5) * this.rngScale };
+
   shakyLine(x1 : number, y1 : number, x2 : number, y2 : number) {
     x1 = this.toX(x1);
     x2 = this.toX(x2);
@@ -55,12 +61,12 @@ class SVGBuilder {
     y2 = this.toY(y2);
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     const rx1 = Math.random();
-    const ry1 = Math.random() - 0.5;
+    const ry1 = this.centerRandom();
     const xm1 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * ry1 * 0.5 / len;
     const ym1 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry1 * 0.5 / len;
     const rx2 = Math.random();
-    const ry2 = Math.random() - 0.5;
-    const xm2 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * rx2 * 0.5 / len;
+    const ry2 = this.centerRandom();
+    const xm2 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * ry2 * 0.5 / len;
     const ym2 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry2 * 0.5 / len;
     this.body += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
               ` class="line"/>\n`;
@@ -97,7 +103,7 @@ class SVGBuilder {
     const dys = [];
 
     for (let i = 0; i < 4; i++) {
-      const rr = r * (0.8 + 0.4 * Math.random());
+      const rr = r * (0.8 + 0.4 * this.random());
       xs.push(x + Math.sin(i * Math.PI / 2) * rr * this.scaleX);
       ys.push(y + Math.cos(i * Math.PI / 2) * rr * this.scaleY);
       dxs.push(Math.cos(i * Math.PI / 2) * d * this.scaleX);
@@ -125,14 +131,14 @@ class SVGBuilder {
 
   toX(x : number) {
     x = (x + 0.5) * this.scaleX;
-    this.boundLeft = Math.min(this.boundLeft, x);
-    this.boundRight = Math.max(this.boundRight, x);
+    this.boundLeft = Math.min(this.boundLeft, x - this.scaleX);
+    this.boundRight = Math.max(this.boundRight, x + this.scaleX);
     return x;
   }
   toY(y : number) {
     y = (y + 0.5) * this.scaleY;
-    this.boundTop = Math.min(this.boundTop, y);
-    this.boundBottom = Math.max(this.boundBottom, y);
+    this.boundTop = Math.min(this.boundTop, y - this.scaleY);
+    this.boundBottom = Math.max(this.boundBottom, y + this.scaleY);
     return y;
   }
 }
@@ -499,6 +505,5 @@ function convertToSVG(contents : string) : SVGBuilder {
       }
     }
   }
-
   return b;
 }
