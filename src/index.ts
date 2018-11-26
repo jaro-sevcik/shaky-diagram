@@ -21,13 +21,14 @@ function writeFooter() {
 }
 
 export function processFile(contents : string) {
+  const svg = convertToSVG(contents);
   writeHeader();
-  console.log(convertToSVG(contents));
+  console.log(svg.body);
   writeFooter();
 }
 
 class SVGBuilder {
-  s : string;
+  body : string;
   scaleX : number = 20;
   scaleY : number = 20;
 
@@ -37,7 +38,7 @@ class SVGBuilder {
   boundBottom : number = 0;
 
   constructor() {
-    this.s = `
+    this.body = `
   <style>
     .txt { font-family: 'Gloria Hallelujah', cursive; font-size:30; }
     .line { stroke:black; stroke-width:4; fill:transparent;
@@ -61,7 +62,7 @@ class SVGBuilder {
     const ry2 = Math.random() - 0.5;
     const xm2 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * rx2 * 0.5 / len;
     const ym2 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry2 * 0.5 / len;
-    this.s += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
+    this.body += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
               ` class="line"/>\n`;
   }
 
@@ -79,7 +80,7 @@ class SVGBuilder {
       return text.replace(/[&<>"']/g, translate);
     }
     // TODO Update the bounds properly.
-    this.s += `<text x="${this.toX(x)}" ` +
+    this.body += `<text x="${this.toX(x)}" ` +
               `y="${this.toY(y + 0.6)}" ` +
               `class="txt">` + escapeHtml(t) + `</text>`;
   }
@@ -102,24 +103,24 @@ class SVGBuilder {
       dxs.push(Math.cos(i * Math.PI / 2) * d * this.scaleX);
       dys.push(- Math.sin(i * Math.PI / 2) * d * this.scaleY);
     }
-    this.s += `<path d="M${xs[0]},${ys[0]} `;
+    this.body += `<path d="M${xs[0]},${ys[0]} `;
 
     for (let i = 0; i < 4; i++) {
-      this.s += `C${xs[i] + dxs[i]},${ys[i] + dys[i]} ` +
+      this.body += `C${xs[i] + dxs[i]},${ys[i] + dys[i]} ` +
       `${xs[(i + 1) % 4] - dxs[(i + 1) % 4]},` +
       `${ys[(i + 1) % 4] - dys[(i + 1) % 4]} ` +
       `${xs[(i + 1) % 4]},${ys[(i + 1) % 4]} `;
     }
 
-    this.s += `" class="ldot"/>\n`;
+    this.body += `" class="ldot"/>\n`;
   }
 
   filledPath(p : IPoint[]) {
-    this.s += `<path d="M${this.toX(p[0].x)},${this.toY(p[0].y)} `;
+    this.body += `<path d="M${this.toX(p[0].x)},${this.toY(p[0].y)} `;
     for (let i = 1; i < p.length; i++) {
-      this.s += `L${this.toX(p[i].x)},${this.toY(p[i].y)} `;
+      this.body += `L${this.toX(p[i].x)},${this.toY(p[i].y)} `;
     }
-    this.s += `Z" style="fill:#eee;"/>\n`;
+    this.body += `Z" style="fill:#eee;"/>\n`;
   }
 
   toX(x : number) {
@@ -335,7 +336,7 @@ function detectAreas(lines : string[]) : IColoring {
   return { paths : regionPaths, coloring };
 }
 
-function convertToSVG(contents : string) {
+function convertToSVG(contents : string) : SVGBuilder {
   const b = new SVGBuilder();
   const lines = padLinesToMax(contents.split("\n"));
   const columns = transpose(lines);
@@ -499,5 +500,5 @@ function convertToSVG(contents : string) {
     }
   }
 
-  return b.s;
+  return b;
 }
