@@ -258,7 +258,7 @@ function convertToSVG(contents : string) {
   const toX = (x : number) => (x + 0.5) * xscale;
   const toY = (y : number) => (y + 0.5) * yscale;
 
-  function addLine(x1 : number, y1 : number, x2 : number, y2 : number) {
+  function drawLine(x1 : number, y1 : number, x2 : number, y2 : number) {
     x1 = toX(x1);
     x2 = toX(x2);
     y1 = toY(y1);
@@ -276,9 +276,22 @@ function convertToSVG(contents : string) {
       ` class="line"/>\n`;
   }
 
-  function addText(x : number, y : number, t : string) {
+  function drawText(x : number, y : number, t : string) {
+    function escapeHtml(text : string) : string {
+      function translate(s : string) {
+        switch (s) {
+          case "&": return "&amp;";
+          case '<': return "&lt;";
+          case '>': return "&gt;";
+          case '"': return "&quot;";
+          case "'": return "&#039;";
+        }
+      };
+      return text.replace(/[&<>"']/g, translate);
+    }
+
     s += `<text x="${(x + 0.5) * xscale}" y="${(y + 1.1) * yscale}"` +
-      ` class="txt">` + t + `</text>`;
+      ` class="txt">` + escapeHtml(t) + `</text>`;
   }
 
   function isUsedHorizontal(x : number, y : number) {
@@ -336,8 +349,8 @@ function convertToSVG(contents : string) {
   function drawArrow(x : number, y : number, dx : number, dy : number) {
     const pdx = - dy;
     const pdy = dx;
-    addLine(x, y, x - 1.4 * dx - 1.0 * pdx, y - 1.4 * dy - 1.0 * pdy);
-    addLine(x, y, x - 1.4 * dx + 1.0 * pdx, y - 1.4 * dy + 1.0 * pdy);
+    drawLine(x, y, x - 1.4 * dx - 1.0 * pdx, y - 1.4 * dy - 1.0 * pdy);
+    drawLine(x, y, x - 1.4 * dx + 1.0 * pdx, y - 1.4 * dy + 1.0 * pdy);
   }
 
   function tryDrawHorizontal(x : number, y : number) {
@@ -371,7 +384,7 @@ function convertToSVG(contents : string) {
     if (head === "*") drawDot(left, y);
     if (tail === ">") drawArrow(right, y, 0.5, 0);
     if (tail === "*") drawDot(right, y);
-    addLine(left, y, right, y);
+    drawLine(left, y, right, y);
     return true;
   }
 
@@ -406,7 +419,7 @@ function convertToSVG(contents : string) {
     if (head === "*") drawDot(x, top);
     if (tail === "v") drawArrow(x, bottom, 0, 0.5);
     if (tail === "*") drawDot(x, bottom);
-    addLine(x, top, x, bottom);
+    drawLine(x, top, x, bottom);
     return true;
   }
 
@@ -466,7 +479,7 @@ function convertToSVG(contents : string) {
       }
       if (x !== end) {
         // We have a word.
-        addText(x, y, l.substr(x, end - x));
+        drawText(x, y, l.substr(x, end - x));
         x = end;
       }
     }
