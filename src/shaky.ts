@@ -43,7 +43,7 @@ export class SVGBuilder {
   constructor() {
     this.body = `
   <style>
-    .txt { font-family: 'Gloria Hallelujah', cursive; font-size:30; }
+    .txt { font-family: 'Gloria Hallelujah', cursive; font-size:30px; }
     .line { stroke:black; stroke-width:4; fill:transparent;
       stroke-linecap:round; }
     .dot { stroke:black; stroke-width:4; fill:black; }
@@ -353,9 +353,6 @@ export function convertToSVG(contents : string) : SVGBuilder {
   const height = lines.length;
   const width = columns.length;
   const processedBitmap : number[][] = [];
-
-  const xscale = 20;
-  const yscale = 20;
 
   function isUsedHorizontal(x : number, y : number) {
     return (processedBitmap[y][x] & 1) !== 0;

@@ -3,16 +3,46 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-
-  <title>The HTML5 Herald</title>
-  <meta name="description" content="The HTML5 Herald">
-  <meta name="author" content="SitePoint">
-
-  <link rel="stylesheet" href="css/styles.css?v=1.0">
-
+  <link href="https://fonts.googleapis.com/css?family=Gloria+Hallelujah" rel="stylesheet">
+  <title>Shaky diagram</title>
 </head>
 
 <body>
-  <script src="js/scripts.js"></script>
+
+<script type="module">
+
+"use strict";
+
+import * as Shaky from "./shaky.js";
+
+let drawnContent = "";
+
+function tryDraw() {
+  let content = document.getElementById("desc").value;
+  if (content === drawnContent) return;
+  drawnContent = content;
+
+  const svg = Shaky.convertToSVG(content);
+  const x = svg.boundLeft;
+  const y = svg.boundTop;
+  const w = svg.boundRight - svg.boundLeft;
+  const h = svg.boundBottom - svg.boundTop;
+
+  document.getElementById("diagram").innerHTML = `
+  <svg width="1000" height="500" viewBox="${x} ${y} ${w} ${h}">
+    ${svg.body}
+  </svg>
+  `;
+}
+
+setInterval(tryDraw, 1000);
+
+</script>
+
+<textarea rows="40" cols="80" id="desc" style="font-family:monospace;">
+</textarea>
+
+<span id="diagram">aaaa</span>
+
 </body>
 </html>

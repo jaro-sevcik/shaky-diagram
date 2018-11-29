@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/run.js",
-    "build": "tsc; copyfiles -u 1 src/index.html dist",
+    "build": "tsc",
+    "build-page": "tsc -m es6; copyfiles -u 1 src/index.html dist",
     "watch": "tsc -w"
   },
   "keywords": [],
