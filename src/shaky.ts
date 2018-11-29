@@ -29,7 +29,7 @@ export function processFile(contents : string) {
   writeFooter();
 }
 
-class SVGBuilder {
+export class SVGBuilder {
   body : string;
   scaleX : number = 20;
   scaleY : number = 20;
@@ -346,7 +346,7 @@ function detectAreas(lines : string[]) : IColoring {
   return { paths : regionPaths, coloring };
 }
 
-function convertToSVG(contents : string) : SVGBuilder {
+export function convertToSVG(contents : string) : SVGBuilder {
   const b = new SVGBuilder();
   const lines = padLinesToMax(contents.split("\n"));
   const columns = transpose(lines);
