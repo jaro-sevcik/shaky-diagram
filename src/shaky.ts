@@ -51,8 +51,8 @@ class SVGBuilder {
 `;
   }
 
-  random() { return Math.random() * this.rngScale};
-  centerRandom() { return (Math.random() - 0.5) * this.rngScale };
+  random() { return Math.random() * this.rngScale; }
+  centerRandom() { return (Math.random() - 0.5) * this.rngScale; }
 
   shakyLine(x1 : number, y1 : number, x2 : number, y2 : number) {
     x1 = this.toX(x1);
@@ -62,14 +62,18 @@ class SVGBuilder {
     const len = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     const rx1 = Math.random();
     const ry1 = this.centerRandom();
-    const xm1 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * ry1 * 0.5 / len;
-    const ym1 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry1 * 0.5 / len;
+    const xm1 = x1 + (x2 - x1) * rx1 +
+        this.scaleX * (y2 - y1) * ry1 * 0.5 / len;
+    const ym1 = y1 + (y2 - y1) * rx1 +
+        this.scaleY * (x1 - x2) * ry1 * 0.5 / len;
     const rx2 = Math.random();
     const ry2 = this.centerRandom();
-    const xm2 = x1 + (x2 - x1) * rx1 + this.scaleX * (y2 - y1) * ry2 * 0.5 / len;
-    const ym2 = y1 + (y2 - y1) * rx1 + this.scaleY * (x1 - x2) * ry2 * 0.5 / len;
-    this.body += `<path d="M${x1},${y1} C${xm1},${ym1} ${xm2},${ym2} ${x2},${y2}"` +
-              ` class="line"/>\n`;
+    const xm2 = x1 + (x2 - x1) * rx1 +
+        this.scaleX * (y2 - y1) * ry2 * 0.5 / len;
+    const ym2 = y1 + (y2 - y1) * rx1 +
+        this.scaleY * (x1 - x2) * ry2 * 0.5 / len;
+    this.body += `<path d="M${x1},${y1} C${xm1},${ym1} ` +
+         `${xm2},${ym2} ${x2},${y2}" class="line"/>\n`;
   }
 
   text(x : number, y : number, t : string) {
@@ -77,12 +81,12 @@ class SVGBuilder {
       function translate(s : string) {
         switch (s) {
           case "&": return "&amp;";
-          case '<': return "&lt;";
-          case '>': return "&gt;";
+          case "<": return "&lt;";
+          case ">": return "&gt;";
           case '"': return "&quot;";
           case "'": return "&#039;";
         }
-      };
+      }
       return text.replace(/[&<>"']/g, translate);
     }
     // TODO Update the bounds properly.
@@ -248,9 +252,9 @@ function detectAreas(lines : string[]) : IColoring {
 
   // Renumber the colors to be dense.
   let maxColor = 0;
-  let colorNumbering : number[] = colorOwner.map((i) => -1);
+  const colorNumbering : number[] = colorOwner.map((i) => -1);
   for (let i = 0; i < colorOwner.length; i++) {
-    let owner = findOwner(i);
+    const owner = findOwner(i);
     if (colorNumbering[owner] === -1) {
       colorNumbering[owner] = maxColor++;
     }
@@ -308,10 +312,10 @@ function detectAreas(lines : string[]) : IColoring {
                       y : y + pivots[probeDirection].y });
           break;
         case 2: // Going back => nothing to do.
-         path.push({ x : x + pivots[(direction + 1) % 4].x,
-                     y : y + pivots[(direction + 1) % 4].y });
-         path.push({ x : x + pivots[probeDirection].x,
-                     y : y + pivots[probeDirection].y });
+          path.push({ x : x + pivots[(direction + 1) % 4].x,
+                      y : y + pivots[(direction + 1) % 4].y });
+          path.push({ x : x + pivots[probeDirection].x,
+                      y : y + pivots[probeDirection].y });
           break;
       }
 
@@ -327,7 +331,7 @@ function detectAreas(lines : string[]) : IColoring {
   // Compute paths.
   for (let i = 0; i < height; i++) {
     for (let j = 0; j < width; j++) {
-      let c = coloring[i][j];
+      const c = coloring[i][j];
       if (c > 0 && !regionPaths[c]) {
         regionPaths[c] = computePath(c, j, i);
       }
