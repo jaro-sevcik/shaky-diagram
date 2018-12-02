@@ -10,8 +10,12 @@
     "watch": "tsc -w"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Jaroslav Sevcik",
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaro-sevcik/shaky-diagram.git"
+  },
   "devDependencies": {
     "@types/node": "^8.0.7",
     "copyfiles": "^2.1.0",
